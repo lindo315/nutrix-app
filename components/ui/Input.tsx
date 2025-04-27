@@ -1,98 +1,133 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  TextInput, 
-  StyleSheet, 
-  TextInputProps, 
-  TouchableOpacity 
+import {
+  StyleSheet,
+  TextInput,
+  View,
+  Text,
+  TouchableOpacity,
+  TextInputProps,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
-import { Typography } from './Typography';
-import { Colors } from '@/constants/Colors';
-import { Layout } from '@/constants/Layout';
 import { Eye, EyeOff } from 'lucide-react-native';
+import { useTheme } from '@/context/ThemeContext';
+import Layout from '@/constants/Layout';
 
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
-  fullWidth?: boolean;
-  isPassword?: boolean;
+  containerStyle?: ViewStyle;
+  labelStyle?: TextStyle;
+  inputStyle?: TextStyle;
+  errorStyle?: TextStyle;
+  secure?: boolean;
 }
 
-export function Input({
+export default function Input({
   label,
   error,
   leftIcon,
   rightIcon,
-  fullWidth = true,
-  isPassword = false,
+  containerStyle,
+  labelStyle,
+  inputStyle,
+  errorStyle,
+  secure = false,
+  style,
   ...props
 }: InputProps) {
   const [isFocused, setIsFocused] = useState(false);
-  const [passwordVisible, setPasswordVisible] = useState(!isPassword);
-  
-  const hasError = !!error;
-  
-  const getBorderColor = () => {
-    if (hasError) return Colors.error[500];
-    if (isFocused) return Colors.primary[500];
-    return Colors.gray[300];
+  const [isPasswordVisible, setIsPasswordVisible] = useState(!secure);
+  const { colors } = useTheme();
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    props.onFocus && props.onFocus(null as any);
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    props.onBlur && props.onBlur(null as any);
   };
 
   const togglePasswordVisibility = () => {
-    setPasswordVisible(prev => !prev);
+    setIsPasswordVisible((prev) => !prev);
   };
-  
-  const passwordIcon = passwordVisible ? (
-    <EyeOff size={20} color={Colors.gray[500]} />
-  ) : (
-    <Eye size={20} color={Colors.gray[500]} />
-  );
 
   return (
-    <View style={[styles.container, fullWidth && styles.fullWidth]}>
+    <View style={[styles.container, containerStyle]}>
       {label && (
-        <Typography variant="subtitle2" color="gray" style={styles.label}>
+        <Text
+          style={[
+            styles.label,
+            { color: colors.text },
+            labelStyle,
+          ]}
+        >
           {label}
-        </Typography>
+        </Text>
       )}
       
-      <View 
+      <View
         style={[
           styles.inputContainer,
-          { borderColor: getBorderColor() },
-          isFocused && styles.focusedInput,
-          hasError && styles.errorInput,
+          {
+            borderColor: error
+              ? colors.error
+              : isFocused
+              ? colors.primary
+              : colors.border,
+            backgroundColor: colors.background,
+          },
+          style,
         ]}
       >
-        {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
+        {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
         
         <TextInput
-          style={styles.input}
-          placeholderTextColor={Colors.gray[400]}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          secureTextEntry={isPassword && !passwordVisible}
+          style={[
+            styles.input,
+            {
+              color: colors.text,
+              fontFamily: 'Montserrat-Regular',
+            },
+            inputStyle,
+          ]}
+          placeholderTextColor={colors.placeholder}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          secureTextEntry={secure && !isPasswordVisible}
           {...props}
         />
         
-        {isPassword ? (
-          <TouchableOpacity 
-            onPress={togglePasswordVisibility} 
-            style={styles.iconContainer}
+        {secure ? (
+          <TouchableOpacity
+            onPress={togglePasswordVisibility}
+            style={styles.rightIcon}
           >
-            {passwordIcon}
+            {isPasswordVisible ? (
+              <Eye size={20} color={colors.inactiveText} />
+            ) : (
+              <EyeOff size={20} color={colors.inactiveText} />
+            )}
           </TouchableOpacity>
         ) : (
-          rightIcon && <View style={styles.iconContainer}>{rightIcon}</View>
+          rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>
         )}
       </View>
       
-      {hasError && (
-        <Typography variant="caption" color="error" style={styles.errorText}>
+      {error && (
+        <Text
+          style={[
+            styles.error,
+            { color: colors.error },
+            errorStyle,
+          ]}
+        >
           {error}
-        </Typography>
+        </Text>
       )}
     </View>
   );
@@ -100,38 +135,36 @@ export function Input({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: Layout.spacing.md,
-  },
-  fullWidth: {
+    marginBottom: Layout.spacing.m,
     width: '100%',
   },
   label: {
-    marginBottom: Layout.spacing.xs,
+    fontSize: 14,
+    marginBottom: 6,
+    fontFamily: 'Montserrat-Medium',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: Layout.borderRadius.sm,
-    backgroundColor: Colors.white,
-    paddingHorizontal: Layout.spacing.md,
+    borderRadius: Layout.borderRadius.medium,
+    paddingHorizontal: Layout.spacing.m,
+    height: 50,
   },
   input: {
     flex: 1,
-    paddingVertical: Layout.spacing.md,
-    color: Colors.gray[900],
     fontSize: 16,
+    height: '100%',
   },
-  iconContainer: {
-    marginHorizontal: Layout.spacing.xs,
+  leftIcon: {
+    marginRight: Layout.spacing.s,
   },
-  focusedInput: {
-    borderColor: Colors.primary[500],
+  rightIcon: {
+    marginLeft: Layout.spacing.s,
   },
-  errorInput: {
-    borderColor: Colors.error[500],
-  },
-  errorText: {
-    marginTop: Layout.spacing.xs,
+  error: {
+    fontSize: 12,
+    marginTop: 4,
+    fontFamily: 'Montserrat-Regular',
   },
 });

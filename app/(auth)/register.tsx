@@ -1,164 +1,189 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
-import { Typography } from '@/components/ui/Typography';
-import { Layout } from '@/constants/Layout';
-import { Link, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Mail, Lock, User, Hash } from 'lucide-react-native';
-import { Colors } from '@/constants/Colors';
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { Link, router } from 'expo-router';
+import { AtSign, Lock, User, ArrowLeft } from 'lucide-react-native';
+import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import Layout from '@/constants/Layout';
 
 export default function RegisterScreen() {
-  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [studentId, setStudentId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const { signUp } = useAuth();
+  const { colors } = useTheme();
 
-  const handleRegister = () => {
-    // Basic validation
-    if (!name || !email || !studentId || !password || !confirmPassword) {
-      setError('Please fill in all fields');
-      return;
+  const validate = () => {
+    const newErrors = {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    };
+    let isValid = true;
+
+    if (!name.trim()) {
+      newErrors.name = 'Name is required';
+      isValid = false;
     }
-    
+
+    if (!email) {
+      newErrors.email = 'Email is required';
+      isValid = false;
+    } else if (!email.endsWith('@students.wits.ac.za')) {
+      newErrors.email = 'Must be a valid Wits University student email';
+      isValid = false;
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+      isValid = false;
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+      isValid = false;
+    }
+
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-    
-    // Validate student email domain
-    if (!email.endsWith('@students.wits.ac.za')) {
-      setError('Please use your Wits student email (@students.wits.ac.za)');
-      return;
+      newErrors.confirmPassword = 'Passwords do not match';
+      isValid = false;
     }
 
-    setIsLoading(true);
-    setError(null);
-    
-    // In a real app, this would be replaced with actual registration logic
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // For demo purposes, navigate to verification screen
-      router.push('/(auth)/verification');
-    }, 1500);
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  const handleRegister = async () => {
+    if (!validate()) return;
+
+    setLoading(true);
+    try {
+      await signUp(email, password);
+      Alert.alert(
+        'Registration Successful',
+        'Please check your email for verification',
+        [{ text: 'OK', onPress: () => router.replace('/(app)/(tabs)') }]
+      );
+    } catch (error: any) {
+      Alert.alert('Registration Failed', error.message || 'Please try again');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <ArrowLeft size={24} color={Colors.gray[800]} />
-          </TouchableOpacity>
-          <Typography variant="h2" style={styles.title}>
-            Create Account
-          </Typography>
-          <Typography variant="body1" color="gray" style={styles.subtitle}>
-            Sign up to order food on campus
-          </Typography>
-        </View>
+    <ScrollView 
+      contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.header}>
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          style={styles.backButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ArrowLeft size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>Create Account</Text>
+      </View>
+
+      <View style={styles.formContainer}>
+        <Input
+          label="Full Name"
+          placeholder="Enter your name"
+          value={name}
+          onChangeText={setName}
+          leftIcon={<User size={20} color={colors.inactiveText} />}
+          error={errors.name}
+        />
         
-        <View style={styles.form}>
-          {error && (
-            <View style={styles.errorContainer}>
-              <Typography variant="body2" color="error">
-                {error}
-              </Typography>
-            </View>
-          )}
-          
-          <Input
-            label="Full Name"
-            placeholder="Enter your full name"
-            value={name}
-            onChangeText={setName}
-            leftIcon={<User size={20} color={Colors.gray[500]} />}
-          />
-          
-          <Input
-            label="Student Email"
-            placeholder="your.name@students.wits.ac.za"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            leftIcon={<Mail size={20} color={Colors.gray[500]} />}
-          />
-          
-          <Input
-            label="Student ID"
-            placeholder="Enter your student ID"
-            value={studentId}
-            onChangeText={setStudentId}
-            keyboardType="numeric"
-            leftIcon={<Hash size={20} color={Colors.gray[500]} />}
-          />
-          
-          <Input
-            label="Password"
-            placeholder="Create a secure password"
-            value={password}
-            onChangeText={setPassword}
-            leftIcon={<Lock size={20} color={Colors.gray[500]} />}
-            isPassword
-          />
-          
-          <Input
-            label="Confirm Password"
-            placeholder="Confirm your password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            leftIcon={<Lock size={20} color={Colors.gray[500]} />}
-            isPassword
-          />
-          
-          <Button
-            variant="filled"
-            size="large"
-            fullWidth
-            loading={isLoading}
-            style={styles.registerButton}
-            onPress={handleRegister}
-          >
-            Register
-          </Button>
-          
-          <View style={styles.loginContainer}>
-            <Typography variant="body2" color="gray">
-              Already have an account?{' '}
-            </Typography>
-            <Link href="/(auth)/login" asChild>
-              <TouchableOpacity>
-                <Typography variant="body2" color="primary" bold>
-                  Log In
-                </Typography>
-              </TouchableOpacity>
-            </Link>
-          </View>
+        <Input
+          label="Email"
+          placeholder="student@students.wits.ac.za"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          leftIcon={<AtSign size={20} color={colors.inactiveText} />}
+          error={errors.email}
+        />
+        
+        <Input
+          label="Password"
+          placeholder="Create a password"
+          value={password}
+          onChangeText={setPassword}
+          secure
+          leftIcon={<Lock size={20} color={colors.inactiveText} />}
+          error={errors.password}
+        />
+        
+        <Input
+          label="Confirm Password"
+          placeholder="Re-enter your password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secure
+          leftIcon={<Lock size={20} color={colors.inactiveText} />}
+          error={errors.confirmPassword}
+        />
+
+        <View style={styles.termsContainer}>
+          <Text style={[styles.termsText, { color: colors.inactiveText }]}>
+            By signing up, you agree to our{' '}
+            <Text style={[styles.termsLink, { color: colors.primary }]}>
+              Terms of Service
+            </Text>{' '}
+            and{' '}
+            <Text style={[styles.termsLink, { color: colors.primary }]}>
+              Privacy Policy
+            </Text>
+          </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        <Button
+          title="Sign Up"
+          onPress={handleRegister}
+          style={styles.button}
+          loading={loading}
+          fullWidth
+        />
+
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: colors.inactiveText }]}>
+            Already have an account?
+          </Text>
+          <Link href="/(auth)/login" asChild>
+            <TouchableOpacity>
+              <Text style={[styles.loginLink, { color: colors.primary }]}>
+                {' '}Log In
+              </Text>
+            </TouchableOpacity>
+          </Link>
+        </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: Colors.white,
-  },
-  scrollContent: {
     flexGrow: 1,
     padding: Layout.spacing.xl,
   },
@@ -166,32 +191,39 @@ const styles = StyleSheet.create({
     marginBottom: Layout.spacing.xl,
   },
   backButton: {
-    marginBottom: Layout.spacing.lg,
+    marginBottom: Layout.spacing.m,
   },
   title: {
-    marginBottom: Layout.spacing.sm,
+    fontSize: 28,
     fontFamily: 'Poppins-Bold',
   },
-  subtitle: {
-    marginBottom: Layout.spacing.lg,
-  },
-  form: {
+  formContainer: {
     flex: 1,
   },
-  errorContainer: {
-    backgroundColor: Colors.error[50],
-    padding: Layout.spacing.md,
-    borderRadius: Layout.borderRadius.sm,
-    marginBottom: Layout.spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.error[500],
+  termsContainer: {
+    marginBottom: Layout.spacing.l,
   },
-  registerButton: {
-    marginVertical: Layout.spacing.lg,
+  termsText: {
+    fontSize: 14,
+    fontFamily: 'Montserrat-Regular',
+    lineHeight: 20,
   },
-  loginContainer: {
+  termsLink: {
+    fontFamily: 'Montserrat-SemiBold',
+  },
+  button: {
+    marginBottom: Layout.spacing.l,
+  },
+  footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: Layout.spacing.sm,
+  },
+  footerText: {
+    fontSize: 14,
+    fontFamily: 'Montserrat-Regular',
+  },
+  loginLink: {
+    fontSize: 14,
+    fontFamily: 'Montserrat-SemiBold',
   },
 });
