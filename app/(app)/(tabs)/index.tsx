@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,6 +8,10 @@ import {
   TouchableOpacity,
   TextInput,
   FlatList,
+  Image,
+  RefreshControl,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -17,22 +21,84 @@ import {
   Clock,
   Heart,
   Bell,
+  Star,
+  Coffee,
+  Pizza,
+  Utensils,
+  Sandwich,
+  Salad,
+  Coffee as CoffeeIcon,
+  Wine,
+  ChevronRight,
 } from 'lucide-react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import Layout from '@/constants/Layout';
 import MerchantCard from '@/components/merchants/MerchantCard';
 import Card from '@/components/ui/Card';
 
-// Mock data for categories
+const { width } = Dimensions.get('window');
+
+// Mock data for categories with icons
 const categories = [
-  { id: 'all', name: 'All' },
-  { id: 'cafe', name: 'Cafe' },
-  { id: 'fast-food', name: 'Fast Food' },
-  { id: 'breakfast', name: 'Breakfast' },
-  { id: 'lunch', name: 'Lunch' },
-  { id: 'dinner', name: 'Dinner' },
-  { id: 'dessert', name: 'Dessert' },
-  { id: 'drinks', name: 'Drinks' },
+  { id: 'all', name: 'All', icon: Utensils },
+  { id: 'cafe', name: 'Cafe', icon: Coffee },
+  { id: 'fast-food', name: 'Fast Food', icon: Pizza },
+  { id: 'breakfast', name: 'Breakfast', icon: Coffee },
+  { id: 'lunch', name: 'Lunch', icon: Sandwich },
+  { id: 'dinner', name: 'Dinner', icon: Utensils },
+  { id: 'salad', name: 'Healthy', icon: Salad },
+  { id: 'drinks', name: 'Drinks', icon: Wine },
+];
+
+// Mock promotional banners
+const promotions = [
+  {
+    id: '1',
+    image: 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg',
+    title: 'Student Special',
+    description: '20% off on all orders above R100',
+  },
+  {
+    id: '2',
+    image: 'https://images.pexels.com/photos/750075/pexels-photo-750075.jpeg',
+    title: 'Free Delivery',
+    description: 'On your first order with code FRESHMAN',
+  },
+  {
+    id: '3',
+    image: 'https://images.pexels.com/photos/2228486/pexels-photo-2228486.jpeg',
+    title: 'Breakfast Bundle',
+    description: 'Get a coffee and sandwich for only R45',
+  },
+];
+
+// Today's specials
+const specialOffers = [
+  {
+    id: '1',
+    name: 'Breakfast Bundle',
+    merchant: "Jimmy's",
+    originalPrice: 75.0,
+    discountedPrice: 55.0,
+    image: 'https://images.pexels.com/photos/5409010/pexels-photo-5409010.jpeg',
+  },
+  {
+    id: '2',
+    name: 'Pizza & Drink Combo',
+    merchant: 'Braam Pizza',
+    originalPrice: 95.0,
+    discountedPrice: 75.0,
+    image: 'https://images.pexels.com/photos/825661/pexels-photo-825661.jpeg',
+  },
+  {
+    id: '3',
+    name: 'Coffee & Pastry',
+    merchant: "Oliver's Bakery",
+    originalPrice: 45.0,
+    discountedPrice: 35.0,
+    image: 'https://images.pexels.com/photos/205961/pexels-photo-205961.jpeg',
+  },
 ];
 
 // Mock data for merchants
@@ -89,10 +155,62 @@ const merchants = [
   },
 ];
 
+// Near you merchants
+const nearYouMerchants = [
+  {
+    id: '6',
+    name: 'Science Cafe',
+    image: 'https://images.pexels.com/photos/2074130/pexels-photo-2074130.jpeg',
+    rating: 4.3,
+    estimatedTime: '5-10 min',
+    category: 'Cafe',
+    location: 'Science Campus',
+    isOpen: true,
+    distance: '0.3 km',
+  },
+  {
+    id: '7',
+    name: 'Law School Deli',
+    image: 'https://images.pexels.com/photos/1600711/pexels-photo-1600711.jpeg',
+    rating: 4.4,
+    estimatedTime: '5-15 min',
+    category: 'Deli',
+    location: 'West Campus',
+    isOpen: true,
+    distance: '0.5 km',
+  },
+  {
+    id: '8',
+    name: 'Engineering Eats',
+    image: 'https://images.pexels.com/photos/1640773/pexels-photo-1640773.jpeg',
+    rating: 4.1,
+    estimatedTime: '10-15 min',
+    category: 'Fast Food',
+    location: 'Engineering Campus',
+    isOpen: true,
+    distance: '0.7 km',
+  },
+];
+
 export default function HomeScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [refreshing, setRefreshing] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, -120], // Match the header height
+    extrapolate: 'clamp',
+  });
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 60],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
   const filteredMerchants = merchants.filter((merchant) => {
     const matchesSearch =
@@ -108,74 +226,259 @@ export default function HomeScreen() {
     router.push(`/merchant/${id}`);
   };
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Simulate a refresh
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1500);
+  }, []);
+
   const renderCategoryItem = useCallback(
-    ({ item }: { item: (typeof categories)[0] }) => (
-      <TouchableOpacity
-        style={[
-          styles.categoryItem,
-          selectedCategory === item.id && { backgroundColor: colors.primary },
-        ]}
-        onPress={() => setSelectedCategory(item.id)}
-      >
-        <Text
+    ({ item }: { item: (typeof categories)[0] }) => {
+      const IconComponent = item.icon;
+      return (
+        <TouchableOpacity
           style={[
-            styles.categoryText,
-            { color: selectedCategory === item.id ? 'white' : colors.text },
+            styles.categoryItem,
+            selectedCategory === item.id && { backgroundColor: colors.primary },
           ]}
+          onPress={() => setSelectedCategory(item.id)}
+        >
+          <IconComponent
+            size={20}
+            color={selectedCategory === item.id ? 'white' : colors.primary}
+          />
+          <Text
+            style={[
+              styles.categoryText,
+              { color: selectedCategory === item.id ? 'white' : colors.text },
+            ]}
+          >
+            {item.name}
+          </Text>
+        </TouchableOpacity>
+      );
+    },
+    [selectedCategory, colors]
+  );
+
+  const renderPromotionItem = ({
+    item,
+    index,
+  }: {
+    item: (typeof promotions)[0];
+    index: number;
+  }) => (
+    <TouchableOpacity
+      style={styles.promotionItem}
+      activeOpacity={0.9}
+      onPress={() => {}}
+    >
+      <Image source={{ uri: item.image }} style={styles.promotionImage} />
+      <View style={styles.promotionOverlay}>
+        <View style={styles.promotionContent}>
+          <Text style={styles.promotionTitle}>{item.title}</Text>
+          <Text style={styles.promotionDescription}>{item.description}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderSpecialItem = ({ item }: { item: (typeof specialOffers)[0] }) => (
+    <TouchableOpacity
+      style={[
+        styles.specialCard,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+      onPress={() => {}}
+    >
+      <Image source={{ uri: item.image }} style={styles.specialImage} />
+      <View style={styles.specialContent}>
+        <Text
+          style={[styles.specialName, { color: colors.text }]}
+          numberOfLines={1}
         >
           {item.name}
         </Text>
-      </TouchableOpacity>
-    ),
-    [selectedCategory, colors]
+        <Text style={[styles.specialMerchant, { color: colors.inactiveText }]}>
+          {item.merchant}
+        </Text>
+        <View style={styles.specialPriceRow}>
+          <Text
+            style={[styles.specialDiscountedPrice, { color: colors.primary }]}
+          >
+            R{item.discountedPrice.toFixed(2)}
+          </Text>
+          <Text style={styles.specialOriginalPrice}>
+            R{item.originalPrice.toFixed(2)}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderNearYouItem = ({
+    item,
+  }: {
+    item: (typeof nearYouMerchants)[0];
+  }) => (
+    <TouchableOpacity
+      style={[
+        styles.nearYouCard,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+      onPress={() => navigateToMerchant(item.id)}
+    >
+      <Image source={{ uri: item.image }} style={styles.nearYouImage} />
+      <View style={styles.nearYouContent}>
+        <Text style={[styles.nearYouName, { color: colors.text }]}>
+          {item.name}
+        </Text>
+        <View style={styles.nearYouDetailsRow}>
+          <View style={styles.nearYouRating}>
+            <Star size={14} color={colors.primary} fill={colors.primary} />
+            <Text style={[styles.nearYouRatingText, { color: colors.text }]}>
+              {item.rating.toFixed(1)}
+            </Text>
+          </View>
+          <Text
+            style={[styles.nearYouCategory, { color: colors.inactiveText }]}
+          >
+            • {item.category}
+          </Text>
+        </View>
+        <View style={styles.nearYouBottomRow}>
+          <View style={styles.nearYouTimeDistance}>
+            <Clock size={12} color={colors.inactiveText} />
+            <Text
+              style={[styles.nearYouDetailText, { color: colors.inactiveText }]}
+            >
+              {item.estimatedTime}
+            </Text>
+          </View>
+          <View style={styles.nearYouTimeDistance}>
+            <MapPin size={12} color={colors.inactiveText} />
+            <Text
+              style={[styles.nearYouDetailText, { color: colors.inactiveText }]}
+            >
+              {item.distance}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <ScrollView stickyHeaderIndices={[1]}>
-        <View style={styles.header}>
-          {/* <View>
-            <Text style={[styles.greeting, { color: colors.text }]}>
-              Hey there, 👋
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.inactiveText }]}>
-              Find your favorite campus food
-            </Text>
-          </View> */}
+      <Animated.View
+        style={[
+          styles.fixedHeader,
+          {
+            backgroundColor: colors.background,
+            opacity: headerOpacity,
+            borderBottomColor: colors.border,
+            transform: [{ translateY: headerTranslateY }],
+          },
+        ]}
+      />
 
-          <View
-            style={[
-              styles.locationContainer,
-              { backgroundColor: colors.highlightBackground },
-            ]}
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            transform: [{ translateY: headerTranslateY }],
+          },
+        ]}
+      >
+        <View>
+          <Text style={[styles.greeting, { color: colors.text }]}>
+            Hey, {user?.displayName || 'Wits Student'} 👋
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.inactiveText }]}>
+            Find your favorite campus food
+          </Text>
+        </View>
+
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => router.push('/favourites')}
+            style={styles.iconButton}
           >
-            <MapPin size={16} color={colors.primary} />
-            <Text style={[styles.locationText, { color: colors.text }]}>
-              Wits Main Campus
-            </Text>
-          </View>
-          {/* Favourites and Notifications */}
-          <View style={{ flexDirection: 'row' }}>
-            <TouchableOpacity
-              onPress={() => router.push('/favourites')}
-              style={{ marginRight: Layout.spacing.m }}
+            <Heart size={22} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/notifications')}
+            style={styles.iconButton}
+          >
+            <Bell size={22} color={colors.text} />
+            <View
+              style={[
+                styles.notificationBadge,
+                { backgroundColor: colors.primary },
+              ]}
             >
-              <Heart
-                size={20}
-                color={colors.text}
-                style={{ marginRight: Layout.spacing.xs }}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/notifications')}>
-              <Bell
-                size={20}
-                color={colors.text}
-                style={{ marginRight: Layout.spacing.xs }}
-              />
-            </TouchableOpacity>
-          </View>
+              <Text style={styles.notificationBadgeText}>2</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      <Animated.ScrollView
+        stickyHeaderIndices={[2]}
+        showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        <View
+          style={[
+            styles.locationContainer,
+            { backgroundColor: colors.highlightBackground },
+          ]}
+        >
+          <MapPin size={16} color={colors.primary} />
+          <Text style={[styles.locationText, { color: colors.text }]}>
+            Wits Main Campus
+          </Text>
+          <TouchableOpacity
+            onPress={() => {}}
+            style={styles.changeLocationButton}
+          >
+            <Text
+              style={[styles.changeLocationText, { color: colors.primary }]}
+            >
+              Change
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Promotional Carousel */}
+        <View style={styles.promotionContainer}>
+          <FlatList
+            data={promotions}
+            renderItem={renderPromotionItem}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            snapToInterval={width - 40}
+            decelerationRate="fast"
+            contentContainerStyle={styles.promotionList}
+          />
         </View>
 
         <View
@@ -204,19 +507,10 @@ export default function HomeScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
-            {/* Vertical Divider */}
-            <View
-              style={{
-                width: 1,
-                height: 24,
-                backgroundColor: colors.border,
-                marginHorizontal: Layout.spacing.m,
-              }}
-            />
             <TouchableOpacity
               style={[styles.filterButton, { backgroundColor: colors.primary }]}
             >
-              <Filter size={20} color="white" />
+              <Filter size={18} color="white" />
             </TouchableOpacity>
           </View>
 
@@ -240,6 +534,30 @@ export default function HomeScreen() {
             </Text>
           )}
 
+          {/* Today's Specials Section */}
+          <View style={styles.specialsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Today's Specials
+              </Text>
+              <TouchableOpacity>
+                <Text style={[styles.seeAllButton, { color: colors.primary }]}>
+                  See All
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={specialOffers}
+              renderItem={renderSpecialItem}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.specialsList}
+            />
+          </View>
+
+          {/* Popular Merchants Section */}
           <View style={styles.featuredSection}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -261,16 +579,53 @@ export default function HomeScreen() {
             ))}
           </View>
 
+          {/* Near You Section */}
+          <View style={styles.nearYouSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Near You
+              </Text>
+              <TouchableOpacity>
+                <Text style={[styles.seeAllButton, { color: colors.primary }]}>
+                  See All
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={nearYouMerchants}
+              renderItem={renderNearYouItem}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.nearYouList}
+            />
+          </View>
+
+          {/* Quick Order Again Section */}
           <View style={styles.quickOrderSection}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Quick Order Again
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Quick Order Again
+              </Text>
+              <TouchableOpacity>
+                <Text style={[styles.seeAllButton, { color: colors.primary }]}>
+                  See All
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <Card
                 style={styles.quickOrderCard}
                 onPress={() => navigateToMerchant('1')}
               >
+                <Image
+                  source={{
+                    uri: 'https://images.pexels.com/photos/1855214/pexels-photo-1855214.jpeg',
+                  }}
+                  style={styles.quickOrderImage}
+                />
                 <Text style={[styles.quickOrderName, { color: colors.text }]}>
                   Jimmy's
                 </Text>
@@ -291,6 +646,12 @@ export default function HomeScreen() {
                 style={styles.quickOrderCard}
                 onPress={() => navigateToMerchant('2')}
               >
+                <Image
+                  source={{
+                    uri: 'https://images.pexels.com/photos/1639562/pexels-photo-1639562.jpeg',
+                  }}
+                  style={styles.quickOrderImage}
+                />
                 <Text style={[styles.quickOrderName, { color: colors.text }]}>
                   Kudu Burger
                 </Text>
@@ -311,8 +672,14 @@ export default function HomeScreen() {
                 style={styles.quickOrderCard}
                 onPress={() => navigateToMerchant('3')}
               >
+                <Image
+                  source={{
+                    uri: 'https://images.pexels.com/photos/205961/pexels-photo-205961.jpeg',
+                  }}
+                  style={styles.quickOrderImage}
+                />
                 <Text style={[styles.quickOrderName, { color: colors.text }]}>
-                  Oliver\'s Bakery
+                  Oliver's Bakery
                 </Text>
                 <View style={styles.quickOrderInfo}>
                   <Clock size={14} color={colors.inactiveText} />
@@ -329,7 +696,7 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
@@ -339,16 +706,26 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: Layout.spacing.xl,
   },
+  fixedHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    zIndex: 10,
+    borderBottomWidth: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: Layout.spacing.xl,
-    paddingTop: Layout.spacing.xl,
+    paddingTop: Layout.spacing.m,
     paddingBottom: Layout.spacing.m,
+    zIndex: 20,
   },
   greeting: {
-    fontSize: 24,
+    fontSize: 22,
     fontFamily: 'Poppins-Bold',
     marginBottom: 4,
   },
@@ -356,14 +733,85 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Montserrat-Regular',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  iconButton: {
+    marginLeft: Layout.spacing.m,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontFamily: 'Montserrat-SemiBold',
+  },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: Layout.spacing.xl,
     padding: Layout.spacing.s,
     borderRadius: Layout.borderRadius.medium,
+    marginBottom: Layout.spacing.m,
   },
   locationText: {
-    marginLeft: 4,
+    marginLeft: 6,
+    fontSize: 14,
+    fontFamily: 'Montserrat-Medium',
+    flex: 1,
+  },
+  changeLocationButton: {
+    paddingHorizontal: Layout.spacing.s,
+  },
+  changeLocationText: {
+    fontSize: 14,
+    fontFamily: 'Montserrat-SemiBold',
+  },
+  promotionContainer: {
+    marginBottom: Layout.spacing.l,
+  },
+  promotionList: {
+    paddingHorizontal: Layout.spacing.xl,
+  },
+  promotionItem: {
+    width: width - 40,
+    height: 160,
+    borderRadius: Layout.borderRadius.large,
+    overflow: 'hidden',
+    marginRight: Layout.spacing.m,
+  },
+  promotionImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  promotionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'flex-end',
+  },
+  promotionContent: {
+    padding: Layout.spacing.l,
+  },
+  promotionTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontFamily: 'Poppins-Bold',
+    marginBottom: 4,
+  },
+  promotionDescription: {
+    color: 'white',
     fontSize: 14,
     fontFamily: 'Montserrat-Medium',
   },
@@ -372,6 +820,7 @@ const styles = StyleSheet.create({
     paddingBottom: Layout.spacing.m,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    zIndex: 20,
   },
   searchInputContainer: {
     flexDirection: 'row',
@@ -389,6 +838,7 @@ const styles = StyleSheet.create({
   filterButton: {
     padding: Layout.spacing.s,
     borderRadius: Layout.borderRadius.small,
+    marginLeft: Layout.spacing.s,
   },
   categoriesList: {
     marginTop: Layout.spacing.m,
@@ -397,6 +847,8 @@ const styles = StyleSheet.create({
     paddingRight: Layout.spacing.m,
   },
   categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Layout.spacing.m,
     paddingVertical: Layout.spacing.s,
     borderRadius: Layout.borderRadius.medium,
@@ -405,6 +857,7 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 14,
     fontFamily: 'Montserrat-Medium',
+    marginLeft: 6,
   },
   content: {
     padding: Layout.spacing.xl,
@@ -414,7 +867,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat-Regular',
     marginBottom: Layout.spacing.m,
   },
-  featuredSection: {
+  specialsSection: {
     marginBottom: Layout.spacing.xl,
   },
   sectionHeader: {
@@ -431,6 +884,111 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Montserrat-Medium',
   },
+  specialsList: {
+    paddingRight: Layout.spacing.m,
+  },
+  specialCard: {
+    width: 160,
+    borderRadius: Layout.borderRadius.medium,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginRight: Layout.spacing.m,
+  },
+  specialImage: {
+    width: '100%',
+    height: 100,
+    resizeMode: 'cover',
+  },
+  specialContent: {
+    padding: Layout.spacing.m,
+  },
+  specialName: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    marginBottom: 2,
+  },
+  specialMerchant: {
+    fontSize: 12,
+    fontFamily: 'Montserrat-Regular',
+    marginBottom: Layout.spacing.xs,
+  },
+  specialPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  specialDiscountedPrice: {
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+    marginRight: Layout.spacing.xs,
+  },
+  specialOriginalPrice: {
+    fontSize: 12,
+    fontFamily: 'Montserrat-Regular',
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+  },
+  featuredSection: {
+    marginBottom: Layout.spacing.xl,
+  },
+  nearYouSection: {
+    marginBottom: Layout.spacing.xl,
+  },
+  nearYouList: {
+    paddingRight: Layout.spacing.m,
+  },
+  nearYouCard: {
+    width: 240,
+    borderRadius: Layout.borderRadius.medium,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginRight: Layout.spacing.m,
+  },
+  nearYouImage: {
+    width: '100%',
+    height: 120,
+    resizeMode: 'cover',
+  },
+  nearYouContent: {
+    padding: Layout.spacing.m,
+  },
+  nearYouName: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Medium',
+    marginBottom: 4,
+  },
+  nearYouDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  nearYouRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  nearYouRatingText: {
+    fontSize: 12,
+    fontFamily: 'Montserrat-Medium',
+    marginLeft: 4,
+  },
+  nearYouCategory: {
+    fontSize: 12,
+    fontFamily: 'Montserrat-Regular',
+  },
+  nearYouBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  nearYouTimeDistance: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: Layout.spacing.m,
+  },
+  nearYouDetailText: {
+    fontSize: 12,
+    fontFamily: 'Montserrat-Regular',
+    marginLeft: 4,
+  },
   quickOrderSection: {
     marginBottom: Layout.spacing.xl,
   },
@@ -438,10 +996,16 @@ const styles = StyleSheet.create({
     width: 150,
     marginRight: Layout.spacing.m,
   },
+  quickOrderImage: {
+    width: '100%',
+    height: 80,
+    borderRadius: Layout.borderRadius.small,
+    marginBottom: Layout.spacing.xs,
+  },
   quickOrderName: {
     fontSize: 14,
     fontFamily: 'Poppins-Medium',
-    marginBottom: Layout.spacing.s,
+    marginBottom: Layout.spacing.xs,
   },
   quickOrderInfo: {
     flexDirection: 'row',
@@ -451,5 +1015,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Montserrat-Regular',
     marginLeft: 4,
+  },
+  quickOrderButton: {
+    marginTop: Layout.spacing.s,
+    backgroundColor: '#FBBF24',
+    paddingVertical: Layout.spacing.s,
+    borderRadius: Layout.borderRadius.medium,
+    alignItems: 'center',
+  },
+  quickOrderButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontFamily: 'Montserrat-Medium',
   },
 });
