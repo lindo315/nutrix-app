@@ -12,6 +12,8 @@ import {
   RefreshControl,
   Animated,
   Dimensions,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -27,9 +29,9 @@ import {
   Utensils,
   Sandwich,
   Salad,
-  Coffee as CoffeeIcon,
   Wine,
   ChevronRight,
+  ChevronDown,
 } from 'lucide-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -38,6 +40,9 @@ import MerchantCard from '@/components/merchants/MerchantCard';
 import Card from '@/components/ui/Card';
 
 const { width } = Dimensions.get('window');
+const HEADER_MAX_HEIGHT = 120;
+const HEADER_MIN_HEIGHT = 70;
+const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 // Mock data for categories with icons
 const categories = [
@@ -200,15 +205,22 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const headerTranslateY = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [0, -120], // Match the header height
+  // Header animations
+  const headerTranslate = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [0, -HEADER_SCROLL_DISTANCE],
     extrapolate: 'clamp',
   });
 
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 60],
-    outputRange: [0, 1],
+  const headerBackgroundOpacity = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2, HEADER_SCROLL_DISTANCE],
+    outputRange: [0, 0.5, 1],
+    extrapolate: 'clamp',
+  });
+
+  const locationContainerOpacity = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [1, 0],
     extrapolate: 'clamp',
   });
 
@@ -374,119 +386,72 @@ export default function HomeScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
+      {/* Fixed Header Background */}
       <Animated.View
         style={[
-          styles.fixedHeader,
+          styles.headerBackgroundContainer,
           {
             backgroundColor: colors.background,
-            opacity: headerOpacity,
+            height: HEADER_MAX_HEIGHT,
+            opacity: headerBackgroundOpacity,
             borderBottomColor: colors.border,
-            transform: [{ translateY: headerTranslateY }],
+            borderBottomWidth: 1,
           },
         ]}
       />
 
+      {/* Header Content */}
       <Animated.View
         style={[
-          styles.header,
+          styles.headerContainer,
           {
-            transform: [{ translateY: headerTranslateY }],
+            height: HEADER_MAX_HEIGHT,
+            transform: [{ translateY: headerTranslate }],
           },
         ]}
       >
-        <View>
-          <Text style={[styles.greeting, { color: colors.text }]}>
-            Hey, {user?.displayName || 'Wits Student'} 👋
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.inactiveText }]}>
-            Find your favorite campus food
-          </Text>
-        </View>
-
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            onPress={() => router.push('/favourites')}
-            style={styles.iconButton}
-          >
-            <Heart size={22} color={colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push('/notifications')}
-            style={styles.iconButton}
-          >
-            <Bell size={22} color={colors.text} />
-            <View
-              style={[
-                styles.notificationBadge,
-                { backgroundColor: colors.primary },
-              ]}
-            >
-              <Text style={styles.notificationBadgeText}>2</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      <Animated.ScrollView
-        stickyHeaderIndices={[2]}
-        showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
-        }
-      >
-        <View
-          style={[
-            styles.locationContainer,
-            { backgroundColor: colors.highlightBackground },
-          ]}
-        >
-          <MapPin size={16} color={colors.primary} />
-          <Text style={[styles.locationText, { color: colors.text }]}>
-            Wits Main Campus
-          </Text>
-          <TouchableOpacity
-            onPress={() => {}}
-            style={styles.changeLocationButton}
-          >
-            <Text
-              style={[styles.changeLocationText, { color: colors.primary }]}
-            >
-              Change
+        {/* Top Row - Location and Icons */}
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity style={styles.locationButton} onPress={() => {}}>
+            <MapPin size={16} color={colors.primary} />
+            <Text style={[styles.locationText, { color: colors.text }]}>
+              Wits Main Campus
             </Text>
+            <ChevronDown size={16} color={colors.primary} />
           </TouchableOpacity>
+
+          <View style={styles.headerIcons}>
+            <TouchableOpacity
+              onPress={() => router.push('/favourites')}
+              style={styles.iconButton}
+            >
+              <Heart size={22} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push('/notifications')}
+              style={styles.iconButton}
+            >
+              <Bell size={22} color={colors.text} />
+              <View
+                style={[
+                  styles.notificationBadge,
+                  { backgroundColor: colors.primary },
+                ]}
+              >
+                <Text style={styles.notificationBadgeText}>2</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Promotional Carousel */}
-        <View style={styles.promotionContainer}>
-          <FlatList
-            data={promotions}
-            renderItem={renderPromotionItem}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            pagingEnabled
-            snapToInterval={width - 40}
-            decelerationRate="fast"
-            contentContainerStyle={styles.promotionList}
-          />
-        </View>
-
-        <View
-          style={[
-            styles.searchContainer,
-            { backgroundColor: colors.background },
-          ]}
-        >
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
           <View
             style={[
               styles.searchInputContainer,
@@ -502,7 +467,7 @@ export default function HomeScreen() {
                 styles.searchInput,
                 { color: colors.text, fontFamily: 'Montserrat-Regular' },
               ]}
-              placeholder="Search..."
+              placeholder="Search.."
               placeholderTextColor={colors.placeholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -513,15 +478,51 @@ export default function HomeScreen() {
               <Filter size={18} color="white" />
             </TouchableOpacity>
           </View>
+        </View>
+      </Animated.View>
 
+      <Animated.ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false } // Change this to false
+        )}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+            progressViewOffset={HEADER_MAX_HEIGHT}
+          />
+        }
+      >
+        {/* Categories List */}
+        <View style={styles.categoriesContainer}>
           <FlatList
             data={categories}
             renderItem={renderCategoryItem}
             keyExtractor={(item) => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.categoriesList}
             contentContainerStyle={styles.categoriesContent}
+          />
+        </View>
+
+        {/* Promotional Carousel */}
+        <View style={styles.promotionContainer}>
+          <FlatList
+            data={promotions}
+            renderItem={renderPromotionItem}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            snapToInterval={width - 40}
+            decelerationRate="fast"
+            contentContainerStyle={styles.promotionList}
           />
         </View>
 
@@ -704,48 +705,56 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: Layout.spacing.xl,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  fixedHeader: {
+  scrollContent: {
+    paddingTop: HEADER_MAX_HEIGHT,
+  },
+  headerBackgroundContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 120,
-    zIndex: 10,
-    borderBottomWidth: 1,
+    zIndex: 1,
   },
-  header: {
+  headerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    paddingHorizontal: Layout.spacing.m,
+    paddingTop: Layout.spacing.s,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: Layout.spacing.xl,
-    paddingTop: Layout.spacing.m,
-    paddingBottom: Layout.spacing.m,
-    zIndex: 20,
+    alignItems: 'center',
+    // marginBottom: Layout.spacing.s,
   },
-  greeting: {
-    fontSize: 22,
-    fontFamily: 'Poppins-Bold',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: 'Montserrat-Regular',
-  },
-  headerRight: {
+  locationButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    paddingVertical: Layout.spacing.xs,
+  },
+  locationText: {
+    fontSize: 14,
+    fontFamily: 'Montserrat-Medium',
+    marginHorizontal: 4,
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   iconButton: {
     marginLeft: Layout.spacing.m,
     position: 'relative',
+    padding: Layout.spacing.xs,
   },
   notificationBadge: {
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: 0,
+    right: 0,
     width: 16,
     height: 16,
     borderRadius: 8,
@@ -757,29 +766,51 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: 'Montserrat-SemiBold',
   },
-  locationContainer: {
+  searchContainer: {
+    marginTop: Layout.spacing.xs,
+  },
+  searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: Layout.spacing.xl,
-    padding: Layout.spacing.s,
+    borderWidth: 1,
     borderRadius: Layout.borderRadius.medium,
-    marginBottom: Layout.spacing.m,
+    paddingHorizontal: Layout.spacing.m,
+    height: 46,
   },
-  locationText: {
-    marginLeft: 6,
+  searchInput: {
+    flex: 1,
+    marginLeft: Layout.spacing.s,
+    fontSize: 16,
+  },
+  filterButton: {
+    padding: Layout.spacing.s,
+    borderRadius: Layout.borderRadius.small,
+    marginLeft: Layout.spacing.s,
+  },
+  categoriesContainer: {
+    paddingVertical: Layout.spacing.m,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  categoriesContent: {
+    paddingHorizontal: Layout.spacing.xl,
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Layout.spacing.m,
+    paddingVertical: Layout.spacing.s,
+    borderRadius: Layout.borderRadius.medium,
+    marginRight: Layout.spacing.s,
+  },
+  categoryText: {
     fontSize: 14,
     fontFamily: 'Montserrat-Medium',
-    flex: 1,
-  },
-  changeLocationButton: {
-    paddingHorizontal: Layout.spacing.s,
-  },
-  changeLocationText: {
-    fontSize: 14,
-    fontFamily: 'Montserrat-SemiBold',
+    marginLeft: 6,
   },
   promotionContainer: {
     marginBottom: Layout.spacing.l,
+    marginTop: Layout.spacing.m,
   },
   promotionList: {
     paddingHorizontal: Layout.spacing.xl,
@@ -814,50 +845,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontFamily: 'Montserrat-Medium',
-  },
-  searchContainer: {
-    paddingHorizontal: Layout.spacing.xl,
-    paddingBottom: Layout.spacing.m,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    zIndex: 20,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: Layout.borderRadius.medium,
-    paddingHorizontal: Layout.spacing.m,
-    height: 50,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: Layout.spacing.s,
-    fontSize: 16,
-  },
-  filterButton: {
-    padding: Layout.spacing.s,
-    borderRadius: Layout.borderRadius.small,
-    marginLeft: Layout.spacing.s,
-  },
-  categoriesList: {
-    marginTop: Layout.spacing.m,
-  },
-  categoriesContent: {
-    paddingRight: Layout.spacing.m,
-  },
-  categoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Layout.spacing.m,
-    paddingVertical: Layout.spacing.s,
-    borderRadius: Layout.borderRadius.medium,
-    marginRight: Layout.spacing.s,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontFamily: 'Montserrat-Medium',
-    marginLeft: 6,
   },
   content: {
     padding: Layout.spacing.xl,
@@ -1015,17 +1002,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Montserrat-Regular',
     marginLeft: 4,
-  },
-  quickOrderButton: {
-    marginTop: Layout.spacing.s,
-    backgroundColor: '#FBBF24',
-    paddingVertical: Layout.spacing.s,
-    borderRadius: Layout.borderRadius.medium,
-    alignItems: 'center',
-  },
-  quickOrderButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontFamily: 'Montserrat-Medium',
   },
 });
